@@ -1,6 +1,5 @@
 package com.coolweather.app.db;
 
-import android.R.id;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteDatabase.CursorFactory;

@@ -12,7 +12,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
-//coolWeatherDB是一个单例类
+//coolWeatherDB是一个单例类，将它的构造方法私有化，提供getInstance方法获取coolWeatherDB实例，保证全局范围内只会有一个CoolWeatherDB实例
 public class CoolWeatherDB {
 
 	// 数据库名
@@ -55,7 +55,7 @@ public class CoolWeatherDB {
 		if (cursor.moveToFirst()) {
 			do {
 				Province province = new Province();
-				province.setId(cursor.getInt(cursor.getColumnIndex("Id")));
+				province.setId(cursor.getInt(cursor.getColumnIndex("id")));
 				province.setProvinceName(cursor.getString(cursor
 						.getColumnIndex("province_name")));
 				province.setProvinceCode(cursor.getString(cursor
