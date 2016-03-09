@@ -3,19 +3,14 @@ package com.coolweather.app.activity;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.coolweather.app.R;
-import com.coolweather.app.db.CoolWeatherDB;
-import com.coolweather.app.model.City;
-import com.coolweather.app.model.Country;
-import com.coolweather.app.model.Province;
-import com.coolweather.app.util.HttpCallbackListener;
-import com.coolweather.app.util.HttpUtil;
-import com.coolweather.app.util.Utility;
-
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.AdapterView;
@@ -24,6 +19,15 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.coolweather.app.R;
+import com.coolweather.app.db.CoolWeatherDB;
+import com.coolweather.app.model.City;
+import com.coolweather.app.model.County;
+import com.coolweather.app.model.Province;
+import com.coolweather.app.util.HttpCallbackListener;
+import com.coolweather.app.util.HttpUtil;
+import com.coolweather.app.util.Utility;
 
 public class ChooseAreaActivity extends Activity {
 
@@ -41,7 +45,7 @@ public class ChooseAreaActivity extends Activity {
 	// 省，市，县列表
 	private List<Province> provinceList;
 	private List<City> cityList;
-	private List<Country> countryList;
+	private List<County> countyList;
 
 	// 选中的省份，城市
 	private Province selectedProvince;
@@ -54,6 +58,16 @@ public class ChooseAreaActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		// TODO 自动生成的方法存根
 		super.onCreate(savedInstanceState);
+
+		SharedPreferences prefs = PreferenceManager
+				.getDefaultSharedPreferences(this);
+		if (prefs.getBoolean("city_selected", false)) {
+			Intent intent = new Intent(this, WeatherActivity.class);
+			startActivity(intent);
+			finish();
+			return;
+		}
+
 		requestWindowFeature(Window.FEATURE_NO_TITLE);
 		setContentView(R.layout.choose_area);
 		listView = (ListView) findViewById(R.id.list_view);
@@ -71,13 +85,24 @@ public class ChooseAreaActivity extends Activity {
 				if (currentLevel == LEVEL_PROVINCE) {
 					selectedProvince = provinceList.get(index);
 					queryCities();
+					/* Log.d("test", currentLevel+"c"); */
 				} else if (currentLevel == LEVEL_CITY) {
 					selectedCity = cityList.get(index);
-					queryCountries();
+					queryCounties();
+					Log.d("test", "查询到城市");
+				} else if (currentLevel == LEVEL_COUNTRY) {
+					String countyCode = countyList.get(index).getCountyCode();
+					Intent intent = new Intent(ChooseAreaActivity.this,
+							WeatherActivity.class);
+					intent.putExtra("county_code", countyCode);
+					startActivity(intent);
+					finish();
 				}
 			}
 		});
+		Log.d("test", "服务器查询省份");
 		queryProvinces();// 加载省级数据
+
 	}
 
 	// 查询所有省，优先查询数据库，若无结果则去服务器查询
@@ -92,6 +117,8 @@ public class ChooseAreaActivity extends Activity {
 			listView.setSelection(0);
 			titleText.setText("中国");
 			currentLevel = LEVEL_PROVINCE;
+			Province province = provinceList.get(0);
+			Log.d("test", "数据库省份加载成功" + province.getId());
 		} else {
 			queryFromServer(null, "province");
 
@@ -100,7 +127,9 @@ public class ChooseAreaActivity extends Activity {
 
 	// 查询选中省内所有市，优先查询数据库，没有则查询服务器
 	private void queryCities() {
+		/* Log.d("test", "查询城市"); */
 		cityList = coolWeatherDB.loadCities(selectedProvince.getId());
+		/* Log.d("test", "1"+selectedProvince.getProvinceName()); */
 		if (cityList.size() > 0) {
 			dataList.clear();
 			for (City city : cityList) {
@@ -110,25 +139,28 @@ public class ChooseAreaActivity extends Activity {
 			listView.setSelection(0);
 			titleText.setText(selectedProvince.getProvinceName());
 			currentLevel = LEVEL_CITY;
+			Log.d("test", "查询城市");
 		} else {
+			Log.d("test", "数据库不存在，启用服务器查询");
 			queryFromServer(selectedProvince.getProvinceCode(), "city");
 
 		}
 	}
 
 	// 查询市内所有县，优先查询数据库，若无则查询服务器
-	private void queryCountries() {
-		countryList = coolWeatherDB.loadCountry(selectedCity.getId());
-		if (countryList.size() > 0) {
+	private void queryCounties() {
+		countyList = coolWeatherDB.loadCounty(selectedCity.getId());
+
+		if (countyList.size() > 0) {
 			dataList.clear();
-			for (Country country : countryList) {
-				dataList.add(country.getCountryName());
+			for (County county : countyList) {
+				dataList.add(county.getCountyName());
 			}
 			adapter.notifyDataSetChanged();
 			listView.setSelection(0);
 			currentLevel = LEVEL_COUNTRY;
 		} else {
-			queryFromServer(selectedCity.getCityCode(), "country");
+			queryFromServer(selectedCity.getCityCode(), "county");
 
 		}
 	}
@@ -137,9 +169,11 @@ public class ChooseAreaActivity extends Activity {
 
 	private void queryFromServer(final String code, final String type) {
 		String address;
+		Log.d("test", "开始服务器查询");
 		if (!TextUtils.isEmpty(code)) {
 			address = "http://www.weather.com.cn/data/list3/city" + code
 					+ ".xml";
+			Log.d("test", "根据code查询" + code);
 		} else {
 			address = "http://www.weather.com.cn/data/list3/city.xml";
 		}
@@ -156,10 +190,11 @@ public class ChooseAreaActivity extends Activity {
 				} else if ("city".equals(type)) {
 					result = Utility.handleCityResponse(coolWeatherDB,
 							response, selectedProvince.getId());
-				} else if ("country".equals(type)) {
+				} else if ("county".equals(type)) {
 					result = Utility.handleCountriesResponse(coolWeatherDB,
 							response, selectedCity.getId());
 				}
+				Log.d("test", "result=false服务器未取到值");
 				if (result) {
 					// 通过runOnUiThread方法回到主线程处理逻辑
 					runOnUiThread(new Runnable() {
@@ -172,11 +207,12 @@ public class ChooseAreaActivity extends Activity {
 								queryProvinces();
 							} else if ("city".equals(type)) {
 								queryCities();
-							} else if ("country".equals(type)) {
-								queryCountries();
+							} else if ("county".equals(type)) {
+								queryCounties();
 							}
 						}
 					});
+					Log.d("test", "true");
 				}
 			}
 
@@ -189,8 +225,10 @@ public class ChooseAreaActivity extends Activity {
 					public void run() {
 						// TODO 自动生成的方法存根
 						closeProgressDialog();
+						Log.d("test", "error");
 						Toast.makeText(ChooseAreaActivity.this, "加载失败",
 								Toast.LENGTH_SHORT).show();
+
 					}
 				});
 			}
